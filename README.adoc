@@ -1,2 +1,36 @@
-= Spring Cloud Scheduler Kubernetes
+== Spring Cloud Scheduler Kubernetes
+
+The Spring Cloud Scheduler Kubernetes project provides a means to schedule short lived tasks to Kubernetes based on the Spring Cloud Scheduler SPI.
+
+== Kubernetes Compatibility
+
+====
+[source,console]
+----
+| Scheduler \ Kubernetes | 1.8 | 1.9 | 1.10
+|------------------------|-----|-----|-----|
+| **1.0**                | ✓   | ✓   | ✓   |
+| **HEAD**               | ✓   | ✓   | ✓   |
+|------------------------|-----|-----|-----|
+----
+====
+
+=== Building
+
+Clone the repo and type:
+
+----
+$ ./mvnw clean install
+----
+
+=== Tests
+
+Tests can be run against https://kubernetes.io/docs/setup/minikube/[Minikube] or a full Kubernetes cluster such as https://cloud.google.com/kubernetes-engine/[GKE]. Tests will be run against the curent context in `kubectl`. The integration tests have a rule that will check to see if a Kubernetes instance can be reached, if so then it will run the integration tests.  If no Kubernetes instance can be reached then the integration tests will be skipped.
+
+[NOTE]
+If you get authentication errors, try setting basic auth credentials obtained from your target Kubernetes installation:
+
+----
+$ KUBERNETES_AUTH_BASIC_USERNAME=username KUBERNETES_AUTH_BASIC_PASSWORD=password ./mvnw clean install
+----
 
