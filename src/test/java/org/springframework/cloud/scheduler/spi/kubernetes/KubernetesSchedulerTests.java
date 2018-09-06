@@ -269,23 +269,6 @@ public class KubernetesSchedulerTests extends AbstractIntegrationTests {
 		assertEquals("Invalid message for field", "invalid cron expression", message);
 	}
 
-	@AfterClass
-	public static void cleanup() {
-		KubernetesSchedulerProperties kubernetesSchedulerProperties = new KubernetesSchedulerProperties();
-
-		KubernetesClient kubernetesClient = new DefaultKubernetesClient()
-				.inNamespace(kubernetesSchedulerProperties.getNamespace());
-
-		KubernetesScheduler kubernetesScheduler = new KubernetesScheduler(kubernetesClient,
-				kubernetesSchedulerProperties);
-
-		List<ScheduleInfo> scheduleInfos = kubernetesScheduler.list();
-
-		for (ScheduleInfo scheduleInfo : scheduleInfos) {
-			kubernetesScheduler.unschedule(scheduleInfo.getScheduleName());
-		}
-	}
-
 	@Test
 	public void testGetExceptionMessageForNonExistentField() {
 		StatusCause statusCause = new StatusCause("spec.schedule", null, null);
@@ -302,6 +285,23 @@ public class KubernetesSchedulerTests extends AbstractIntegrationTests {
 				"spec.restartpolicy");
 
 		assertNull("Field message should be null", message);
+	}
+
+	@AfterClass
+	public static void cleanup() {
+		KubernetesSchedulerProperties kubernetesSchedulerProperties = new KubernetesSchedulerProperties();
+
+		KubernetesClient kubernetesClient = new DefaultKubernetesClient()
+				.inNamespace(kubernetesSchedulerProperties.getNamespace());
+
+		KubernetesScheduler kubernetesScheduler = new KubernetesScheduler(kubernetesClient,
+				kubernetesSchedulerProperties);
+
+		List<ScheduleInfo> scheduleInfos = kubernetesScheduler.list();
+
+		for (ScheduleInfo scheduleInfo : scheduleInfos) {
+			kubernetesScheduler.unschedule(scheduleInfo.getScheduleName());
+		}
 	}
 
 	@Configuration
