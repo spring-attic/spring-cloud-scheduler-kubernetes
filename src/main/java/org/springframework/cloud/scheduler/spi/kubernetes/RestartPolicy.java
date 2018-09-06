@@ -28,7 +28,7 @@ public enum RestartPolicy {
 	OnFailure,
 
 	/**
-	 * Never restarts a successfully or failed container.
+	 * Never restarts a successful or failed container.
 	 */
 	Never
 }

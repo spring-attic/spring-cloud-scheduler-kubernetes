@@ -72,7 +72,7 @@ public class KubernetesScheduler implements Scheduler {
 			String invalidCronExceptionMessage = getExceptionMessageForField(e, SCHEDULE_EXPRESSION_FIELD_NAME);
 
 			if (StringUtils.hasText(invalidCronExceptionMessage)) {
-				throw new IllegalArgumentException(invalidCronExceptionMessage);
+				throw new CreateScheduleException(invalidCronExceptionMessage, e);
 			}
 
 			throw new CreateScheduleException("Failed to create schedule " + scheduleRequest.getScheduleName(), e);
@@ -81,7 +81,7 @@ public class KubernetesScheduler implements Scheduler {
 
 	@Override
 	public void unschedule(String scheduleName) {
-		boolean unscheduled = kubernetesClient.batch().cronjobs().withName(scheduleName).delete();
+		boolean unscheduled = this.kubernetesClient.batch().cronjobs().withName(scheduleName).delete();
 
 		if (!unscheduled) {
 			throw new SchedulerException("Failed to unschedule schedule " + scheduleName + " does not exist.");
@@ -98,7 +98,7 @@ public class KubernetesScheduler implements Scheduler {
 
 	@Override
 	public List<ScheduleInfo> list() {
-		CronJobList cronJobList = kubernetesClient.batch().cronjobs().list();
+		CronJobList cronJobList = this.kubernetesClient.batch().cronjobs().list();
 
 		List<CronJob> cronJobs = cronJobList.getItems();
 		List<ScheduleInfo> scheduleInfos = new ArrayList<>();
@@ -125,15 +125,15 @@ public class KubernetesScheduler implements Scheduler {
 		String schedule = scheduleRequest.getSchedulerProperties().get(SchedulerPropertyKeys.CRON_EXPRESSION);
 		Assert.hasText(schedule, "The property: " + SchedulerPropertyKeys.CRON_EXPRESSION + " must be defined");
 
-		Container container = new ContainerCreator(kubernetesSchedulerProperties, scheduleRequest).build();
+		Container container = new ContainerCreator(this.kubernetesSchedulerProperties, scheduleRequest).build();
 
 		CronJob cronJob = new CronJobBuilder().withNewMetadata().withName(scheduleRequest.getScheduleName())
 				.withLabels(labels).endMetadata().withNewSpec().withSchedule(schedule).withNewJobTemplate()
 				.withNewSpec().withNewTemplate().withNewSpec().withContainers(container)
-				.withRestartPolicy(kubernetesSchedulerProperties.getRestartPolicy().name()).endSpec().endTemplate()
+				.withRestartPolicy(this.kubernetesSchedulerProperties.getRestartPolicy().name()).endSpec().endTemplate()
 				.endSpec().endJobTemplate().endSpec().build();
 
-		return kubernetesClient.batch().cronjobs().create(cronJob);
+		return this.kubernetesClient.batch().cronjobs().create(cronJob);
 	}
 
 	protected String getExceptionMessageForField(KubernetesClientException kubernetesClientException,

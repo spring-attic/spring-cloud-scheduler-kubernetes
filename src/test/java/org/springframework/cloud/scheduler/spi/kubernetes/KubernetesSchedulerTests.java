@@ -27,6 +27,7 @@ import io.fabric8.kubernetes.api.model.batch.CronJobSpec;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClientException;
+import org.junit.AfterClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -36,6 +37,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cloud.deployer.resource.docker.DockerResource;
 import org.springframework.cloud.deployer.spi.core.AppDefinition;
+import org.springframework.cloud.scheduler.spi.core.CreateScheduleException;
+import org.springframework.cloud.scheduler.spi.core.ScheduleInfo;
 import org.springframework.cloud.scheduler.spi.core.ScheduleRequest;
 import org.springframework.cloud.scheduler.spi.core.Scheduler;
 import org.springframework.cloud.scheduler.spi.core.SchedulerPropertyKeys;
@@ -138,7 +141,7 @@ public class KubernetesSchedulerTests extends AbstractIntegrationTests {
 		fail();
 	}
 
-	@Test(expected = IllegalArgumentException.class)
+	@Test(expected = CreateScheduleException.class)
 	public void testInvalidCronSyntax() {
 		Map<String, String> schedulerProperties = Collections.singletonMap(CRON_EXPRESSION, "1 2 3 4");
 
@@ -264,6 +267,23 @@ public class KubernetesSchedulerTests extends AbstractIntegrationTests {
 
 		assertNotNull("Field message should not be null", message);
 		assertEquals("Invalid message for field", "invalid cron expression", message);
+	}
+
+	@AfterClass
+	public static void cleanup() {
+		KubernetesSchedulerProperties kubernetesSchedulerProperties = new KubernetesSchedulerProperties();
+
+		KubernetesClient kubernetesClient = new DefaultKubernetesClient()
+				.inNamespace(kubernetesSchedulerProperties.getNamespace());
+
+		KubernetesScheduler kubernetesScheduler = new KubernetesScheduler(kubernetesClient,
+				kubernetesSchedulerProperties);
+
+		List<ScheduleInfo> scheduleInfos = kubernetesScheduler.list();
+
+		for (ScheduleInfo scheduleInfo : scheduleInfos) {
+			kubernetesScheduler.unschedule(scheduleInfo.getScheduleName());
+		}
 	}
 
 	@Test

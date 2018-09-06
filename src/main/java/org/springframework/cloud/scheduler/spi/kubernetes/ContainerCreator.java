@@ -48,19 +48,19 @@ class ContainerCreator {
 
 	public ContainerCreator(KubernetesSchedulerProperties kubernetesSchedulerProperties,
 			ScheduleRequest scheduleRequest) {
-		this.scheduleRequest = scheduleRequest;
-		this.kubernetesSchedulerProperties = kubernetesSchedulerProperties;
-
 		Assert.notNull(scheduleRequest, "ScheduleRequest must not be null");
 		Assert.notNull(kubernetesSchedulerProperties, "KubernetesSchedulerProperties must not be null");
 		Assert.hasText(scheduleRequest.getScheduleName(), "ScheduleRequest must contain schedule name");
+
+		this.scheduleRequest = scheduleRequest;
+		this.kubernetesSchedulerProperties = kubernetesSchedulerProperties;
 	}
 
 	public Container build() {
 		return new ContainerBuilder()
-				.withName(scheduleRequest.getScheduleName())
+				.withName(this.scheduleRequest.getScheduleName())
 				.withImage(getImage())
-				.withImagePullPolicy(kubernetesSchedulerProperties.getImagePullPolicy().name())
+				.withImagePullPolicy(this.kubernetesSchedulerProperties.getImagePullPolicy().name())
 				.withEnv(getContainerParameters().getEnvironmentVariables())
 				.withArgs(getContainerParameters().getCommandLineArguments())
 				.build();
@@ -70,10 +70,11 @@ class ContainerCreator {
 		String image;
 
 		try {
-			image = scheduleRequest.getResource().getURI().getSchemeSpecificPart();
+			image = this.scheduleRequest.getResource().getURI().getSchemeSpecificPart();
 		}
 		catch (IOException e) {
-			throw new IllegalArgumentException("Unable to get image name from: " + scheduleRequest.getResource(), e);
+			throw new IllegalArgumentException("Unable to get image name from: " +
+					this.scheduleRequest.getResource(), e);
 		}
 
 		return image;
@@ -83,7 +84,7 @@ class ContainerCreator {
 		List<EnvVar> environmentVariables = new ArrayList<>();
 		List<String> commandLineArguments = new ArrayList<>();
 
-		EntryPointStyle entryPointStyle = kubernetesSchedulerProperties.getEntryPointStyle();
+		EntryPointStyle entryPointStyle = this.kubernetesSchedulerProperties.getEntryPointStyle();
 
 		switch (entryPointStyle) {
 		case exec:
@@ -93,14 +94,14 @@ class ContainerCreator {
 		case boot:
 			try {
 				environmentVariables.add(new EnvVar("SPRING_APPLICATION_JSON",
-						new ObjectMapper().writeValueAsString(scheduleRequest.getDefinition().getProperties()),
+						new ObjectMapper().writeValueAsString(this.scheduleRequest.getDefinition().getProperties()),
 						null));
 			}
 			catch (JsonProcessingException e) {
 				throw new IllegalStateException("Unable to create SPRING_APPLICATION_JSON", e);
 			}
 
-			commandLineArguments.addAll(scheduleRequest.getCommandlineArguments());
+			commandLineArguments.addAll(this.scheduleRequest.getCommandlineArguments());
 
 			break;
 		case shell:
@@ -114,7 +115,7 @@ class ContainerCreator {
 
 	protected List<String> createCommandLineArguments() {
 		List<String> commandLineArguments = new ArrayList<>();
-		Map<String, String> applicationProperties = scheduleRequest.getDefinition().getProperties();
+		Map<String, String> applicationProperties = this.scheduleRequest.getDefinition().getProperties();
 
 		commandLineArguments.addAll(applicationProperties
 				.entrySet()
@@ -122,7 +123,7 @@ class ContainerCreator {
 				.map(entry -> String.format("--%s=%s", entry.getKey(), entry.getValue()))
 				.collect(Collectors.toList()));
 
-		commandLineArguments.addAll(scheduleRequest.getCommandlineArguments());
+		commandLineArguments.addAll(this.scheduleRequest.getCommandlineArguments());
 
 		return commandLineArguments;
 	}
@@ -130,11 +131,11 @@ class ContainerCreator {
 	protected List<EnvVar> createEnvironmentVariables() {
 		List<EnvVar> environmentVariables = new ArrayList<>();
 
-		for (String environmentVariable : scheduleRequest.getDefinition().getProperties().keySet()) {
+		for (String environmentVariable : this.scheduleRequest.getDefinition().getProperties().keySet()) {
 			String transformedEnvironmentVariable = environmentVariable.replace('.', '_').toUpperCase();
 
 			environmentVariables.add(new EnvVar(transformedEnvironmentVariable,
-					scheduleRequest.getDefinition().getProperties().get(environmentVariable), null));
+					this.scheduleRequest.getDefinition().getProperties().get(environmentVariable), null));
 		}
 
 		return environmentVariables;
@@ -151,11 +152,11 @@ class ContainerCreator {
 		}
 
 		List<EnvVar> getEnvironmentVariables() {
-			return environmentVariables;
+			return this.environmentVariables;
 		}
 
 		List<String> getCommandLineArguments() {
-			return commandLineArguments;
+			return this.commandLineArguments;
 		}
 	}
 }
