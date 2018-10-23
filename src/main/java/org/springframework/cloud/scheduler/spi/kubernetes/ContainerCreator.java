@@ -28,6 +28,7 @@ import org.springframework.util.Assert;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -57,10 +58,13 @@ class ContainerCreator {
 	}
 
 	public Container build() {
+		String imagePullPolicy = KubernetesSchedulerPropertyResolver.getImagePullPolicy(this.scheduleRequest,
+				this.kubernetesSchedulerProperties);
+
 		return new ContainerBuilder()
 				.withName(this.scheduleRequest.getScheduleName())
 				.withImage(getImage())
-				.withImagePullPolicy(this.kubernetesSchedulerProperties.getImagePullPolicy().name())
+				.withImagePullPolicy(imagePullPolicy)
 				.withEnv(getContainerParameters().getEnvironmentVariables())
 				.withArgs(getContainerParameters().getCommandLineArguments())
 				.build();
@@ -84,7 +88,15 @@ class ContainerCreator {
 		List<EnvVar> environmentVariables = new ArrayList<>();
 		List<String> commandLineArguments = new ArrayList<>();
 
-		EntryPointStyle entryPointStyle = this.kubernetesSchedulerProperties.getEntryPointStyle();
+		Map<String, String> envVarsMap = new HashMap<>();
+		envVarsMap.putAll(KubernetesSchedulerPropertyResolver.getTaskEnvironmentVariables(this.scheduleRequest,
+				this.kubernetesSchedulerProperties));
+
+		environmentVariables.addAll(envVarsMap.entrySet().stream().map(e -> new EnvVar(e.getKey(), e.getValue(), null))
+				.collect(Collectors.toList()));
+
+		EntryPointStyle entryPointStyle = KubernetesSchedulerPropertyResolver.getEntryPointStyle(this.scheduleRequest,
+				this.kubernetesSchedulerProperties);
 
 		switch (entryPointStyle) {
 		case exec:

@@ -17,6 +17,7 @@
 package org.springframework.cloud.scheduler.spi.kubernetes;
 
 import io.fabric8.kubernetes.api.model.Container;
+import io.fabric8.kubernetes.api.model.LocalObjectReference;
 import io.fabric8.kubernetes.api.model.StatusCause;
 import io.fabric8.kubernetes.api.model.batch.CronJob;
 import io.fabric8.kubernetes.api.model.batch.CronJobBuilder;
@@ -127,11 +128,18 @@ public class KubernetesScheduler implements Scheduler {
 
 		Container container = new ContainerCreator(this.kubernetesSchedulerProperties, scheduleRequest).build();
 
+		String taskServiceAccountName = KubernetesSchedulerPropertyResolver.getTaskServiceAccountName(scheduleRequest,
+				this.kubernetesSchedulerProperties);
+
+		String restartPolicy = this.kubernetesSchedulerProperties.getRestartPolicy().name();
+
 		CronJob cronJob = new CronJobBuilder().withNewMetadata().withName(scheduleRequest.getScheduleName())
 				.withLabels(labels).endMetadata().withNewSpec().withSchedule(schedule).withNewJobTemplate()
-				.withNewSpec().withNewTemplate().withNewSpec().withContainers(container)
-				.withRestartPolicy(this.kubernetesSchedulerProperties.getRestartPolicy().name()).endSpec().endTemplate()
-				.endSpec().endJobTemplate().endSpec().build();
+				.withNewSpec().withNewTemplate().withNewSpec().withServiceAccountName(taskServiceAccountName)
+				.withContainers(container).withRestartPolicy(restartPolicy).endSpec().endTemplate().endSpec()
+				.endJobTemplate().endSpec().build();
+
+		setImagePullSecret(scheduleRequest, cronJob);
 
 		return this.kubernetesClient.batch().cronjobs().create(cronJob);
 	}
@@ -149,5 +157,18 @@ public class KubernetesScheduler implements Scheduler {
 		}
 
 		return null;
+	}
+
+	private void setImagePullSecret(ScheduleRequest scheduleRequest, CronJob cronJob) {
+		String imagePullSecret = KubernetesSchedulerPropertyResolver.getImagePullSecret(scheduleRequest,
+				this.kubernetesSchedulerProperties);
+
+		if (StringUtils.hasText(imagePullSecret)) {
+			LocalObjectReference localObjectReference = new LocalObjectReference();
+			localObjectReference.setName(imagePullSecret);
+
+			cronJob.getSpec().getJobTemplate().getSpec().getTemplate().getSpec().getImagePullSecrets()
+					.add(localObjectReference);
+		}
 	}
 }

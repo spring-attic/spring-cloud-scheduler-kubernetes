@@ -16,6 +16,10 @@
 
 package org.springframework.cloud.scheduler.spi.kubernetes;
 
+import org.springframework.boot.bind.RelaxedNames;
+
+import java.util.EnumSet;
+
 /**
  * Defines container entry point styles that are available. The selected entry point style
  * will determine how application properties are made available to the container.
@@ -38,5 +42,29 @@ public enum EntryPointStyle {
 	 * SPRING_APPLICATION_JSON environment variable. Command line arguments will be passed
 	 * as-is.
 	 */
-	boot
+	boot;
+
+	/**
+	 * Converts the string of the provided entry point style to the appropriate enum value
+	 * using {@link RelaxedNames}. Defaults to {@link EntryPointStyle#exec} if no matching
+	 * entry point style is found.
+	 *
+	 * @param entryPointStyle the entry point style to use
+	 * @return the converted {@link EntryPointStyle}
+	 */
+	public static EntryPointStyle relaxedValueOf(String entryPointStyle) {
+		for (EntryPointStyle candidate : EnumSet.allOf(EntryPointStyle.class)) {
+			for (String relaxedName : new RelaxedNames(candidate.name())) {
+				if (relaxedName.equals(entryPointStyle)) {
+					return candidate;
+				}
+			}
+
+			if (candidate.name().equalsIgnoreCase(entryPointStyle)) {
+				return candidate;
+			}
+		}
+
+		return exec;
+	}
 }

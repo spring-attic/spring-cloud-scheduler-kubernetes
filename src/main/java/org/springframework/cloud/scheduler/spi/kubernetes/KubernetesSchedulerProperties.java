@@ -78,6 +78,27 @@ public class KubernetesSchedulerProperties {
 	private String namespace = KUBERNETES_NAMESPACE;
 
 	/**
+	 * The Secret name to use when pulling a private docker image.
+	 */
+	private String imagePullSecret;
+
+	/**
+	 * The default service account name to use for tasks.
+	 */
+	protected static final String DEFAULT_TASK_SERVICE_ACCOUNT_NAME = "default";
+
+	/**
+	 * Service account name to use for tasks, defaults to:
+	 * {@link KubernetesSchedulerProperties#DEFAULT_TASK_SERVICE_ACCOUNT_NAME}
+	 */
+	private String taskServiceAccountName = DEFAULT_TASK_SERVICE_ACCOUNT_NAME;
+
+	/**
+	 * Environment variables to set on all tasks.
+	 */
+	private String[] environmentVariables = new String[] {};
+
+	/**
 	 * Obtains the {@link ImagePullPolicy} to use. Defaults to
 	 * {@link KubernetesSchedulerProperties#imagePullPolicy}.
 	 *
@@ -151,5 +172,59 @@ public class KubernetesSchedulerProperties {
 	 */
 	public void setNamespace(String namespace) {
 		this.namespace = namespace;
+	}
+
+	/**
+	 * Obtains the name of the Secret to use when pulling images.
+	 *
+	 * @return the name of the Secret
+	 */
+	public String getImagePullSecret() {
+		return imagePullSecret;
+	}
+
+	/**
+	 * Sets the name of the Secret to use when pulling images.
+	 *
+	 * @param imagePullSecret the Secret name
+	 */
+	public void setImagePullSecret(String imagePullSecret) {
+		this.imagePullSecret = imagePullSecret;
+	}
+
+	/**
+	 * Obtains the service account name to use for tasks.
+	 *
+	 * @return the service account name
+	 */
+	public String getTaskServiceAccountName() {
+		return taskServiceAccountName;
+	}
+
+	/**
+	 * Sets the service account name to use for tasks.
+	 *
+	 * @param taskServiceAccountName the service account name
+	 */
+	public void setTaskServiceAccountName(String taskServiceAccountName) {
+		this.taskServiceAccountName = taskServiceAccountName;
+	}
+
+	/**
+	 * Obtains the environment variables set on all tasks.
+	 *
+	 * @return the environment variables
+	 */
+	public String[] getEnvironmentVariables() {
+		return environmentVariables;
+	}
+
+	/**
+	 * Sets the environment variables to use on all tasks.
+	 *
+	 * @param environmentVariables the environment variables to set
+	 */
+	public void setEnvironmentVariables(String[] environmentVariables) {
+		this.environmentVariables = environmentVariables;
 	}
 }

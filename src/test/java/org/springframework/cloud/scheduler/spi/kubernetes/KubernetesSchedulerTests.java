@@ -19,6 +19,8 @@ package org.springframework.cloud.scheduler.spi.kubernetes;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.fabric8.kubernetes.api.model.Container;
+import io.fabric8.kubernetes.api.model.EnvVar;
+import io.fabric8.kubernetes.api.model.LocalObjectReference;
 import io.fabric8.kubernetes.api.model.Status;
 import io.fabric8.kubernetes.api.model.StatusCause;
 import io.fabric8.kubernetes.api.model.StatusDetails;
@@ -57,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -285,6 +288,311 @@ public class KubernetesSchedulerTests extends AbstractIntegrationTests {
 				"spec.restartpolicy");
 
 		assertNull("Field message should be null", message);
+	}
+
+	@Test
+	public void testEntryPointStyleOverride() throws Exception {
+		KubernetesSchedulerProperties kubernetesSchedulerProperties = new KubernetesSchedulerProperties();
+
+		KubernetesClient kubernetesClient = new DefaultKubernetesClient()
+				.inNamespace(kubernetesSchedulerProperties.getNamespace());
+
+		KubernetesScheduler kubernetesScheduler = new KubernetesScheduler(kubernetesClient,
+				kubernetesSchedulerProperties);
+
+		String prefix = KubernetesSchedulerProperties.KUBERNETES_SCHEDULER_PROPERTIES;
+
+		Map<String, String> schedulerProperties = new HashMap<>(getSchedulerProperties());
+		schedulerProperties.put(prefix + ".entryPointStyle", "boot");
+
+		AppDefinition appDefinition = new AppDefinition(randomName(), getAppProperties());
+		ScheduleRequest scheduleRequest = new ScheduleRequest(appDefinition, schedulerProperties,
+				null, getCommandLineArgs(), randomName(), testApplication());
+
+		CronJob cronJob = kubernetesScheduler.createCronJob(scheduleRequest);
+		CronJobSpec cronJobSpec = cronJob.getSpec();
+
+		Container container = cronJobSpec.getJobTemplate().getSpec().getTemplate().getSpec().getContainers().get(0);
+
+		assertTrue("Environment variables should not be empty", !container.getEnv().isEmpty());
+		assertEquals("Unexpected number of environment variables", 1, container.getEnv().size());
+
+		String springApplicationJson = container.getEnv().get(0).getValue();
+
+		Map<String, String> springApplicationJsonValues = new ObjectMapper().readValue(springApplicationJson,
+				new TypeReference<HashMap<String, String>>() {
+				});
+
+		assertNotNull("SPRING_APPLICATION_JSON should not be null", springApplicationJsonValues);
+		assertEquals("Invalid number of SPRING_APPLICATION_JSON entries", 2, springApplicationJsonValues.size());
+
+		kubernetesScheduler.unschedule(cronJob.getMetadata().getName());
+	}
+
+	@Test
+	public void testEntryPointStyleDefault() throws Exception {
+		KubernetesSchedulerProperties kubernetesSchedulerProperties = new KubernetesSchedulerProperties();
+
+		KubernetesClient kubernetesClient = new DefaultKubernetesClient()
+				.inNamespace(kubernetesSchedulerProperties.getNamespace());
+
+		KubernetesScheduler kubernetesScheduler = new KubernetesScheduler(kubernetesClient,
+				kubernetesSchedulerProperties);
+
+		AppDefinition appDefinition = new AppDefinition(randomName(), getAppProperties());
+		ScheduleRequest scheduleRequest = new ScheduleRequest(appDefinition, getSchedulerProperties(),
+				getDeploymentProperties(), getCommandLineArgs(), randomName(), testApplication());
+
+		CronJob cronJob = kubernetesScheduler.createCronJob(scheduleRequest);
+		CronJobSpec cronJobSpec = cronJob.getSpec();
+
+		Container container = cronJobSpec.getJobTemplate().getSpec().getTemplate().getSpec().getContainers().get(0);
+
+		assertTrue("Environment variables should be empty", container.getEnv().isEmpty());
+		assertTrue("Command line arguments should not be empty", !container.getArgs().isEmpty());
+
+		kubernetesScheduler.unschedule(cronJob.getMetadata().getName());
+	}
+
+	@Test
+	public void testImagePullPolicyOverride() {
+		KubernetesSchedulerProperties kubernetesSchedulerProperties = new KubernetesSchedulerProperties();
+
+		KubernetesClient kubernetesClient = new DefaultKubernetesClient()
+				.inNamespace(kubernetesSchedulerProperties.getNamespace());
+
+		KubernetesScheduler kubernetesScheduler = new KubernetesScheduler(kubernetesClient,
+				kubernetesSchedulerProperties);
+
+		String prefix = KubernetesSchedulerProperties.KUBERNETES_SCHEDULER_PROPERTIES;
+
+		Map<String, String> schedulerProperties = new HashMap<>(getSchedulerProperties());
+		schedulerProperties.put(prefix + ".imagePullPolicy", "Always");
+
+		AppDefinition appDefinition = new AppDefinition(randomName(), getAppProperties());
+		ScheduleRequest scheduleRequest = new ScheduleRequest(appDefinition, schedulerProperties,
+				null, getCommandLineArgs(), randomName(), testApplication());
+
+		CronJob cronJob = kubernetesScheduler.createCronJob(scheduleRequest);
+		CronJobSpec cronJobSpec = cronJob.getSpec();
+
+		Container container = cronJobSpec.getJobTemplate().getSpec().getTemplate().getSpec().getContainers().get(0);
+
+		assertEquals("Unexpected image pull policy", "Always", container.getImagePullPolicy());
+
+		kubernetesScheduler.unschedule(cronJob.getMetadata().getName());
+	}
+
+	@Test
+	public void testImagePullPolicyDefault() {
+		KubernetesSchedulerProperties kubernetesSchedulerProperties = new KubernetesSchedulerProperties();
+
+		KubernetesClient kubernetesClient = new DefaultKubernetesClient()
+				.inNamespace(kubernetesSchedulerProperties.getNamespace());
+
+		KubernetesScheduler kubernetesScheduler = new KubernetesScheduler(kubernetesClient,
+				kubernetesSchedulerProperties);
+
+		AppDefinition appDefinition = new AppDefinition(randomName(), getAppProperties());
+		ScheduleRequest scheduleRequest = new ScheduleRequest(appDefinition, getSchedulerProperties(),
+				getDeploymentProperties(), getCommandLineArgs(), randomName(), testApplication());
+
+		CronJob cronJob = kubernetesScheduler.createCronJob(scheduleRequest);
+		CronJobSpec cronJobSpec = cronJob.getSpec();
+
+		Container container = cronJobSpec.getJobTemplate().getSpec().getTemplate().getSpec().getContainers().get(0);
+
+		assertEquals("Unexpected default image pull policy", ImagePullPolicy.IfNotPresent,
+				ImagePullPolicy.relaxedValueOf(container.getImagePullPolicy()));
+
+		kubernetesScheduler.unschedule(cronJob.getMetadata().getName());
+	}
+
+	@Test
+	public void testImagePullSecret() {
+		KubernetesSchedulerProperties kubernetesSchedulerProperties = new KubernetesSchedulerProperties();
+
+		KubernetesClient kubernetesClient = new DefaultKubernetesClient()
+				.inNamespace(kubernetesSchedulerProperties.getNamespace());
+
+		KubernetesScheduler kubernetesScheduler = new KubernetesScheduler(kubernetesClient,
+				kubernetesSchedulerProperties);
+
+		String secretName = "mysecret";
+		String prefix = KubernetesSchedulerProperties.KUBERNETES_SCHEDULER_PROPERTIES;
+
+		Map<String, String> schedulerProperties = new HashMap<>(getSchedulerProperties());
+		schedulerProperties.put(prefix + ".imagePullSecret", secretName);
+
+		AppDefinition appDefinition = new AppDefinition(randomName(), getAppProperties());
+		ScheduleRequest scheduleRequest = new ScheduleRequest(appDefinition, schedulerProperties,
+				null, getCommandLineArgs(), randomName(), testApplication());
+
+		CronJob cronJob = kubernetesScheduler.createCronJob(scheduleRequest);
+		CronJobSpec cronJobSpec = cronJob.getSpec();
+
+		List<LocalObjectReference> secrets = cronJobSpec.getJobTemplate().getSpec().getTemplate().getSpec()
+				.getImagePullSecrets();
+		assertEquals("Unexpected image pull secret", secretName, secrets.get(0).getName());
+
+		kubernetesScheduler.unschedule(cronJob.getMetadata().getName());
+	}
+
+	@Test
+	public void testImagePullSecretDefault() {
+		KubernetesSchedulerProperties kubernetesSchedulerProperties = new KubernetesSchedulerProperties();
+
+		KubernetesClient kubernetesClient = new DefaultKubernetesClient()
+				.inNamespace(kubernetesSchedulerProperties.getNamespace());
+
+		KubernetesScheduler kubernetesScheduler = new KubernetesScheduler(kubernetesClient,
+				kubernetesSchedulerProperties);
+
+		AppDefinition appDefinition = new AppDefinition(randomName(), getAppProperties());
+		ScheduleRequest scheduleRequest = new ScheduleRequest(appDefinition, getSchedulerProperties(),
+				getDeploymentProperties(), getCommandLineArgs(), randomName(), testApplication());
+
+		CronJob cronJob = kubernetesScheduler.createCronJob(scheduleRequest);
+		CronJobSpec cronJobSpec = cronJob.getSpec();
+
+		List<LocalObjectReference> secrets = cronJobSpec.getJobTemplate().getSpec().getTemplate().getSpec()
+				.getImagePullSecrets();
+		assertTrue("There should be no secrets", secrets.isEmpty());
+
+		kubernetesScheduler.unschedule(cronJob.getMetadata().getName());
+	}
+
+	@Test
+	public void testCustomEnvironmentVariables() {
+		String prefix = KubernetesSchedulerProperties.KUBERNETES_SCHEDULER_PROPERTIES;
+
+		Map<String, String> schedulerProperties = new HashMap<>(getSchedulerProperties());
+		schedulerProperties.put(prefix + ".environmentVariables", "MYVAR1=MYVAL1,MYVAR2=MYVAL2");
+
+		EnvVar[] expectedVars = new EnvVar[] { new EnvVar("MYVAR1", "MYVAL1", null),
+				new EnvVar("MYVAR2", "MYVAL2", null) };
+
+		testEnvironmentVariables(new KubernetesSchedulerProperties(), schedulerProperties, expectedVars);
+	}
+
+	@Test
+	public void testGlobalEnvironmentVariables() {
+		KubernetesSchedulerProperties kubernetesSchedulerProperties = new KubernetesSchedulerProperties();
+		kubernetesSchedulerProperties.setEnvironmentVariables(new String[] { "MYVAR1=MYVAL1,MYVAR2=MYVAL2" });
+
+		EnvVar[] expectedVars = new EnvVar[] { new EnvVar("MYVAR1", "MYVAL1", null),
+				new EnvVar("MYVAR2", "MYVAL2", null) };
+
+		testEnvironmentVariables(kubernetesSchedulerProperties, getSchedulerProperties(), expectedVars);
+	}
+
+	@Test
+	public void testCustomEnvironmentVariablesWithNestedComma() {
+		String prefix = KubernetesSchedulerProperties.KUBERNETES_SCHEDULER_PROPERTIES;
+
+		Map<String, String> schedulerProperties = new HashMap<>(getSchedulerProperties());
+		schedulerProperties.put(prefix + ".environmentVariables", "MYVAR='VAL1,VAL2',MYVAR2=MYVAL2");
+
+		EnvVar[] expectedVars = new EnvVar[] { new EnvVar("MYVAR", "VAL1,VAL2", null),
+				new EnvVar("MYVAR2", "MYVAL2", null) };
+
+		testEnvironmentVariables(new KubernetesSchedulerProperties(), schedulerProperties, expectedVars);
+	}
+
+	@Test
+	public void testGlobalAndCustomEnvironmentVariables() {
+		KubernetesSchedulerProperties kubernetesSchedulerProperties = new KubernetesSchedulerProperties();
+		kubernetesSchedulerProperties.setEnvironmentVariables(new String[] { "MYVAR1=MYVAL1,MYVAR2=MYVAL2" });
+
+		String prefix = KubernetesSchedulerProperties.KUBERNETES_SCHEDULER_PROPERTIES;
+
+		Map<String, String> schedulerProperties = new HashMap<>(getSchedulerProperties());
+		schedulerProperties.put(prefix + ".environmentVariables", "MYVAR3=MYVAL3,MYVAR4=MYVAL4");
+
+		EnvVar[] expectedVars = new EnvVar[] { new EnvVar("MYVAR1", "MYVAL1", null),
+				new EnvVar("MYVAR2", "MYVAL2", null), new EnvVar("MYVAR3", "MYVAL3", null),
+				new EnvVar("MYVAR4", "MYVAL4", null) };
+
+		testEnvironmentVariables(kubernetesSchedulerProperties, schedulerProperties, expectedVars);
+	}
+
+	private void testEnvironmentVariables(KubernetesSchedulerProperties kubernetesSchedulerProperties,
+			Map<String, String> schedulerProperties, EnvVar[] expectedVars) {
+		KubernetesClient kubernetesClient = new DefaultKubernetesClient()
+				.inNamespace(kubernetesSchedulerProperties.getNamespace());
+
+		KubernetesScheduler kubernetesScheduler = new KubernetesScheduler(kubernetesClient,
+				kubernetesSchedulerProperties);
+
+		AppDefinition appDefinition = new AppDefinition(randomName(), getAppProperties());
+		ScheduleRequest scheduleRequest = new ScheduleRequest(appDefinition, schedulerProperties,
+				null, getCommandLineArgs(), randomName(), testApplication());
+
+		CronJob cronJob = kubernetesScheduler.createCronJob(scheduleRequest);
+		CronJobSpec cronJobSpec = cronJob.getSpec();
+
+		Container container = cronJobSpec.getJobTemplate().getSpec().getTemplate().getSpec().getContainers().get(0);
+
+		assertTrue("Environment variables should not be empty", !container.getEnv().isEmpty());
+
+		assertThat(container.getEnv()).contains(expectedVars);
+
+		kubernetesScheduler.unschedule(cronJob.getMetadata().getName());
+	}
+
+	@Test
+	public void testTaskServiceAccountNameOverride() {
+		KubernetesSchedulerProperties kubernetesSchedulerProperties = new KubernetesSchedulerProperties();
+
+		KubernetesClient kubernetesClient = new DefaultKubernetesClient()
+				.inNamespace(kubernetesSchedulerProperties.getNamespace());
+
+		KubernetesScheduler kubernetesScheduler = new KubernetesScheduler(kubernetesClient,
+				kubernetesSchedulerProperties);
+
+		String taskServiceAccountName = "mysa";
+		String prefix = KubernetesSchedulerProperties.KUBERNETES_SCHEDULER_PROPERTIES;
+
+		Map<String, String> schedulerProperties = new HashMap<>(getSchedulerProperties());
+		schedulerProperties.put(prefix + ".taskServiceAccountName", taskServiceAccountName);
+
+		AppDefinition appDefinition = new AppDefinition(randomName(), getAppProperties());
+		ScheduleRequest scheduleRequest = new ScheduleRequest(appDefinition, schedulerProperties,
+				null, getCommandLineArgs(), randomName(), testApplication());
+
+		CronJob cronJob = kubernetesScheduler.createCronJob(scheduleRequest);
+		CronJobSpec cronJobSpec = cronJob.getSpec();
+
+		String serviceAccountName = cronJobSpec.getJobTemplate().getSpec().getTemplate().getSpec()
+				.getServiceAccountName();
+		assertEquals("Unexpected service account name", taskServiceAccountName, serviceAccountName);
+
+		kubernetesScheduler.unschedule(cronJob.getMetadata().getName());
+	}
+
+	@Test
+	public void testTaskServiceAccountNameDefault() {
+		KubernetesSchedulerProperties kubernetesSchedulerProperties = new KubernetesSchedulerProperties();
+
+		KubernetesClient kubernetesClient = new DefaultKubernetesClient()
+				.inNamespace(kubernetesSchedulerProperties.getNamespace());
+
+		KubernetesScheduler kubernetesScheduler = new KubernetesScheduler(kubernetesClient,
+				kubernetesSchedulerProperties);
+
+		AppDefinition appDefinition = new AppDefinition(randomName(), getAppProperties());
+		ScheduleRequest scheduleRequest = new ScheduleRequest(appDefinition, getSchedulerProperties(),
+				getDeploymentProperties(), getCommandLineArgs(), randomName(), testApplication());
+
+		CronJob cronJob = kubernetesScheduler.createCronJob(scheduleRequest);
+		CronJobSpec cronJobSpec = cronJob.getSpec();
+
+		String serviceAccountName = cronJobSpec.getJobTemplate().getSpec().getTemplate().getSpec()
+				.getServiceAccountName();
+		assertEquals("Unexpected service account name", KubernetesSchedulerProperties.DEFAULT_TASK_SERVICE_ACCOUNT_NAME,
+				serviceAccountName);
+
+		kubernetesScheduler.unschedule(cronJob.getMetadata().getName());
 	}
 
 	@AfterClass
