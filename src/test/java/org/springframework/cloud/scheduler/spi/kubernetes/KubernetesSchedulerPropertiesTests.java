@@ -26,6 +26,7 @@ import org.springframework.util.StringUtils;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -102,6 +103,61 @@ public class KubernetesSchedulerPropertiesTests {
 			assertTrue("Namespace should not be empty or null",
 					StringUtils.hasText(kubernetesSchedulerProperties.getNamespace()));
 			assertEquals("Unexpected namespace", "myns", kubernetesSchedulerProperties.getNamespace());
+		}
+
+		@Test
+		public void testImagePullSecretDefault() {
+			KubernetesSchedulerProperties kubernetesSchedulerProperties = new KubernetesSchedulerProperties();
+			assertNull("No default image pull secret should be set",
+					kubernetesSchedulerProperties.getImagePullSecret());
+		}
+
+		@Test
+		public void testImagePullSecretCanBeCustomized() {
+			String secret = "mysecret";
+			KubernetesSchedulerProperties kubernetesSchedulerProperties = new KubernetesSchedulerProperties();
+			kubernetesSchedulerProperties.setImagePullSecret(secret);
+			assertNotNull("Image pull secret should not be null", kubernetesSchedulerProperties.getImagePullSecret());
+			assertEquals("Unexpected image pull secret", secret, kubernetesSchedulerProperties.getImagePullSecret());
+		}
+
+		@Test
+		public void testEnvironmentVariablesDefault() {
+			KubernetesSchedulerProperties kubernetesSchedulerProperties = new KubernetesSchedulerProperties();
+			assertEquals("No default environment variables should be set", 0,
+					kubernetesSchedulerProperties.getEnvironmentVariables().length);
+		}
+
+		@Test
+		public void testEnvironmentVariablesCanBeCustomized() {
+			String[] envVars = new String[] { "var1=val1", "var2=val2" };
+			KubernetesSchedulerProperties kubernetesSchedulerProperties = new KubernetesSchedulerProperties();
+			kubernetesSchedulerProperties.setEnvironmentVariables(envVars);
+			assertNotNull("Environment variables should not be null",
+					kubernetesSchedulerProperties.getEnvironmentVariables());
+			assertEquals("Unexpected number of environment variables", 2,
+					kubernetesSchedulerProperties.getEnvironmentVariables().length);
+		}
+
+		@Test
+		public void testTaskServiceAccountNameDefault() {
+			KubernetesSchedulerProperties kubernetesSchedulerProperties = new KubernetesSchedulerProperties();
+			assertNotNull("Task service account name should not be null",
+					kubernetesSchedulerProperties.getTaskServiceAccountName());
+			assertEquals("Unexpected default task service account name",
+					KubernetesSchedulerProperties.DEFAULT_TASK_SERVICE_ACCOUNT_NAME,
+					kubernetesSchedulerProperties.getTaskServiceAccountName());
+		}
+
+		@Test
+		public void testTaskServiceAccountNameCanBeCustomized() {
+			String taskServiceAccountName = "mysa";
+			KubernetesSchedulerProperties kubernetesSchedulerProperties = new KubernetesSchedulerProperties();
+			kubernetesSchedulerProperties.setTaskServiceAccountName(taskServiceAccountName);
+			assertNotNull("Task service account name should not be null",
+					kubernetesSchedulerProperties.getTaskServiceAccountName());
+			assertEquals("Unexpected task service account name", taskServiceAccountName,
+					kubernetesSchedulerProperties.getTaskServiceAccountName());
 		}
 	}
 

@@ -16,6 +16,10 @@
 
 package org.springframework.cloud.scheduler.spi.kubernetes;
 
+import org.springframework.boot.bind.RelaxedNames;
+
+import java.util.EnumSet;
+
 /**
  * Defines container image pull policies that are available. The selection of pull policy
  * will determine when an image is pulled.
@@ -36,5 +40,29 @@ public enum ImagePullPolicy {
 	/**
 	 * Never pull the image, only use what is present in the registry.
 	 */
-	Never
+	Never;
+
+	/**
+	 * Converts the string of the provided image pull policy to the appropriate enum value
+	 * using {@link RelaxedNames}. Defaults to {@link ImagePullPolicy#IfNotPresent} if no
+	 * matching image pull policy is found.
+	 *
+	 * @param imagePullPolicy the image pull policy to use
+	 * @return the converted {@link ImagePullPolicy}
+	 */
+	public static ImagePullPolicy relaxedValueOf(String imagePullPolicy) {
+		for (ImagePullPolicy candidate : EnumSet.allOf(ImagePullPolicy.class)) {
+			for (String relaxedName : new RelaxedNames(candidate.name())) {
+				if (relaxedName.equals(imagePullPolicy)) {
+					return candidate;
+				}
+			}
+
+			if (candidate.name().equalsIgnoreCase(imagePullPolicy)) {
+				return candidate;
+			}
+		}
+
+		return IfNotPresent;
+	}
 }
