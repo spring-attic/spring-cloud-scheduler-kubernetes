@@ -516,6 +516,22 @@ public class KubernetesSchedulerTests extends AbstractIntegrationTests {
 		testEnvironmentVariables(kubernetesSchedulerProperties, schedulerProperties, expectedVars);
 	}
 
+	@Test
+	public void testCustomEnvironmentVariablesOverrideGlobal() {
+		KubernetesSchedulerProperties kubernetesSchedulerProperties = new KubernetesSchedulerProperties();
+		kubernetesSchedulerProperties.setEnvironmentVariables(new String[] { "MYVAR1=MYVAL1,MYVAR2=MYVAL2" });
+
+		String prefix = KubernetesSchedulerProperties.KUBERNETES_SCHEDULER_PROPERTIES;
+
+		Map<String, String> schedulerProperties = new HashMap<>(getSchedulerProperties());
+		schedulerProperties.put(prefix + ".environmentVariables", "MYVAR2=OVERRIDE");
+
+		EnvVar[] expectedVars = new EnvVar[] { new EnvVar("MYVAR1", "MYVAL1", null),
+				new EnvVar("MYVAR2", "OVERRIDE", null) };
+
+		testEnvironmentVariables(kubernetesSchedulerProperties, schedulerProperties, expectedVars);
+	}
+
 	private void testEnvironmentVariables(KubernetesSchedulerProperties kubernetesSchedulerProperties,
 			Map<String, String> schedulerProperties, EnvVar[] expectedVars) {
 		KubernetesClient kubernetesClient = new DefaultKubernetesClient()

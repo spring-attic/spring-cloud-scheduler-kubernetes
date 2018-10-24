@@ -64,14 +64,14 @@ class KubernetesSchedulerPropertyResolver {
 			KubernetesSchedulerProperties kubernetesSchedulerProperties) {
 		Map<String, String> environmentVariableMap = new HashMap<>();
 
+		for (String environmentVariable : kubernetesSchedulerProperties.getEnvironmentVariables()) {
+			environmentVariableMap.putAll(parseEnvironmentVariables(environmentVariable));
+		}
+
 		String taskEnvironmentVariables = request.getSchedulerProperties()
 				.get(KubernetesSchedulerProperties.KUBERNETES_SCHEDULER_PROPERTIES + ".environmentVariables");
 
 		environmentVariableMap.putAll(parseEnvironmentVariables(taskEnvironmentVariables));
-
-		for (String environmentVariable : kubernetesSchedulerProperties.getEnvironmentVariables()) {
-			environmentVariableMap.putAll(parseEnvironmentVariables(environmentVariable));
-		}
 
 		return environmentVariableMap;
 	}
