@@ -19,7 +19,7 @@
         <java.version>1.8</java.version>
         <spring-cloud-scheduler-spi.version>1.0.1.RELEASE</spring-cloud-scheduler-spi.version>
         <kubernetes-client.version>4.0.4</kubernetes-client.version>
-        <deployer.spi.version>1.3.3.RELEASE</deployer.spi.version>
+        <deployer.spi.version>1.3.4.RELEASE</deployer.spi.version>
         <powermock.version>1.7.1</powermock.version>
     </properties>
 
