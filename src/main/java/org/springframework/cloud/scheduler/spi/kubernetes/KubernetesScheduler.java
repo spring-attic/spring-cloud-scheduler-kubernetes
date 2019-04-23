@@ -19,11 +19,13 @@ package org.springframework.cloud.scheduler.spi.kubernetes;
 import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.LocalObjectReference;
 import io.fabric8.kubernetes.api.model.StatusCause;
+import io.fabric8.kubernetes.api.model.Volume;
 import io.fabric8.kubernetes.api.model.batch.CronJob;
 import io.fabric8.kubernetes.api.model.batch.CronJobBuilder;
 import io.fabric8.kubernetes.api.model.batch.CronJobList;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClientException;
+import org.springframework.boot.bind.YamlConfigurationFactory;
 import org.springframework.cloud.scheduler.spi.core.CreateScheduleException;
 import org.springframework.cloud.scheduler.spi.core.ScheduleInfo;
 import org.springframework.cloud.scheduler.spi.core.ScheduleRequest;
@@ -136,6 +138,10 @@ public class KubernetesScheduler implements Scheduler {
 		CronJob cronJob = new CronJobBuilder().withNewMetadata().withName(scheduleRequest.getScheduleName())
 				.withLabels(labels).endMetadata().withNewSpec().withSchedule(schedule).withNewJobTemplate()
 				.withNewSpec().withNewTemplate().withNewSpec().withServiceAccountName(taskServiceAccountName)
+					.withVolumes(getVolumes(scheduleRequest).stream()
+							.filter(volume -> container.getVolumeMounts().stream()
+									.anyMatch(volumeMount -> volumeMount.getName().equals(volume.getName())))
+							.collect(Collectors.toList()))
 				.withContainers(container).withRestartPolicy(restartPolicy).endSpec().endTemplate().endSpec()
 				.endJobTemplate().endSpec().build();
 
@@ -170,5 +176,49 @@ public class KubernetesScheduler implements Scheduler {
 			cronJob.getSpec().getJobTemplate().getSpec().getTemplate().getSpec().getImagePullSecrets()
 					.add(localObjectReference);
 		}
+	}
+
+	/**
+	 * Volume deployment properties are specified in YAML format:
+	 *
+	 * <code>
+	 *     spring.cloud.scheduler.kubernetes.volumes=[{name: testhostpath, hostPath: { path: '/test/override/hostPath' }},
+	 *     	{name: 'testpvc', persistentVolumeClaim: { claimName: 'testClaim', readOnly: 'true' }},
+	 *     	{name: 'testnfs', nfs: { server: '10.0.0.1:111', path: '/test/nfs' }}]
+	 * </code>
+	 *
+	 * Volumes can be specified as scheduler properties as well as app deployment properties.
+	 * Deployment properties override scheduler properties.
+	 *
+	 * @param request
+	 * @return the configured volumes
+	 */
+	protected List<Volume> getVolumes(ScheduleRequest request) {
+		List<Volume> volumes = new ArrayList<>();
+
+		String volumeDeploymentProperty = request.getDeploymentProperties()
+				.getOrDefault("spring.cloud.deployer.kubernetes.volumes", "");
+		if (!StringUtils.isEmpty(volumeDeploymentProperty)) {
+			YamlConfigurationFactory<KubernetesSchedulerProperties> volumeYamlConfigurationFactory =
+					new YamlConfigurationFactory<>(KubernetesSchedulerProperties.class);
+			volumeYamlConfigurationFactory.setYaml("{ volumes: " + volumeDeploymentProperty + " }");
+			try {
+				volumeYamlConfigurationFactory.afterPropertiesSet();
+				volumes.addAll(
+						volumeYamlConfigurationFactory.getObject().getVolumes());
+			}
+			catch (Exception e) {
+				throw new IllegalArgumentException(
+						String.format("Invalid volume '%s'", volumeDeploymentProperty), e);
+			}
+		}
+		// only add volumes that have not already been added, based on the volume's name
+		// i.e. allow provided deployment volumes to override scheduler defined volumes
+		volumes.addAll(this.kubernetesSchedulerProperties.getVolumes().stream()
+				.filter(volume -> volumes.stream()
+						.noneMatch(existingVolume -> existingVolume.getName().equals(volume.getName())))
+				.collect(Collectors.toList()));
+
+		return volumes;
 	}
 }

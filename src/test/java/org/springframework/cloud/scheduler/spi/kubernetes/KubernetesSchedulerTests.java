@@ -20,10 +20,14 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.EnvVar;
+import io.fabric8.kubernetes.api.model.HostPathVolumeSource;
+import io.fabric8.kubernetes.api.model.HostPathVolumeSourceBuilder;
 import io.fabric8.kubernetes.api.model.LocalObjectReference;
 import io.fabric8.kubernetes.api.model.Status;
 import io.fabric8.kubernetes.api.model.StatusCause;
 import io.fabric8.kubernetes.api.model.StatusDetails;
+import io.fabric8.kubernetes.api.model.VolumeBuilder;
+import io.fabric8.kubernetes.api.model.VolumeMount;
 import io.fabric8.kubernetes.api.model.batch.CronJob;
 import io.fabric8.kubernetes.api.model.batch.CronJobSpec;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
@@ -530,6 +534,44 @@ public class KubernetesSchedulerTests extends AbstractIntegrationTests {
 				new EnvVar("MYVAR2", "OVERRIDE", null) };
 
 		testEnvironmentVariables(kubernetesSchedulerProperties, schedulerProperties, expectedVars);
+	}
+
+	@Test
+	public void testMountedHostPathVolume() {
+		String containerPath = "/tmp/";
+		String subPath = randomName();
+		String mountName = "mount";
+
+		HostPathVolumeSource hostPathVolumeSource = new HostPathVolumeSourceBuilder()
+				.withPath("/tmp/" + randomName() + '/').build();
+
+		KubernetesSchedulerProperties kubernetesSchedulerProperties = new KubernetesSchedulerProperties();
+		kubernetesSchedulerProperties.setVolumes(Collections.singletonList(new VolumeBuilder()
+				.withHostPath(hostPathVolumeSource)
+				.withName(mountName)
+				.build()));
+		kubernetesSchedulerProperties.setVolumeMounts(Collections.singletonList(new VolumeMount(hostPathVolumeSource.getPath(), null,
+				mountName, false, null)));
+		KubernetesClient kubernetesClient = new DefaultKubernetesClient()
+				.inNamespace(kubernetesSchedulerProperties.getNamespace());
+
+		KubernetesScheduler kubernetesScheduler = new KubernetesScheduler(kubernetesClient,
+				kubernetesSchedulerProperties);
+
+		AppDefinition definition = new AppDefinition(randomName(),
+				Collections.singletonMap("logging.file", containerPath + subPath));
+		ScheduleRequest scheduleRequest = new ScheduleRequest(definition, getSchedulerProperties(),
+				getDeploymentProperties(), getCommandLineArgs(), randomName(), testApplication());
+		CronJob cronJob = kubernetesScheduler.createCronJob(scheduleRequest);
+		CronJobSpec cronJobSpec = cronJob.getSpec();
+
+		Container container = cronJobSpec.getJobTemplate().getSpec().getTemplate().getSpec().getContainers().get(0);
+
+		VolumeMount volumeMount = container.getVolumeMounts().get(0);
+		assertEquals("Invalid volume mount name", mountName, volumeMount.getName());
+		assertEquals("Invalid volume mount, mount path", hostPathVolumeSource.getPath(), volumeMount.getMountPath());
+
+		kubernetesScheduler.unschedule(cronJob.getMetadata().getName());
 	}
 
 	private void testEnvironmentVariables(KubernetesSchedulerProperties kubernetesSchedulerProperties,

@@ -16,8 +16,13 @@
 
 package org.springframework.cloud.scheduler.spi.kubernetes;
 
+import io.fabric8.kubernetes.api.model.Volume;
+import io.fabric8.kubernetes.api.model.VolumeMount;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.util.StringUtils;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Configuration properties for the Kubernetes Scheduler.
@@ -97,6 +102,21 @@ public class KubernetesSchedulerProperties {
 	 * Environment variables to set on all tasks.
 	 */
 	private String[] environmentVariables = new String[] {};
+
+	/**
+	 * Volume mounts that a container is requesting.
+	 * This can be specified as a deployer property or as an app deployment property.
+	 * Deployment properties will override deployer properties.
+	 */
+	private List<VolumeMount> volumeMounts = new ArrayList<>();
+
+	/**
+	 * The volumes that a Kubernetes instance supports.
+	 * See http://kubernetes.io/docs/user-guide/volumes/#types-of-volumes
+	 * This can be specified as a deployer property or as an app deployment property.
+	 * Deployment properties will override deployer properties.
+	 */
+	private List<Volume> volumes = new ArrayList<>();
 
 	/**
 	 * Obtains the {@link ImagePullPolicy} to use. Defaults to
@@ -226,5 +246,21 @@ public class KubernetesSchedulerProperties {
 	 */
 	public void setEnvironmentVariables(String[] environmentVariables) {
 		this.environmentVariables = environmentVariables;
+	}
+
+	public List<VolumeMount> getVolumeMounts() {
+		return volumeMounts;
+	}
+
+	public void setVolumeMounts(List<VolumeMount> volumeMounts) {
+		this.volumeMounts = volumeMounts;
+	}
+
+	public List<Volume> getVolumes() {
+		return volumes;
+	}
+
+	public void setVolumes(List<Volume> volumes) {
+		this.volumes = volumes;
 	}
 }

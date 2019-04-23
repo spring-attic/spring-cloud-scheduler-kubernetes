@@ -21,9 +21,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.ContainerBuilder;
 import io.fabric8.kubernetes.api.model.EnvVar;
+import io.fabric8.kubernetes.api.model.VolumeMount;
 import io.fabric8.kubernetes.api.model.batch.CronJob;
+import org.springframework.boot.bind.YamlConfigurationFactory;
 import org.springframework.cloud.scheduler.spi.core.ScheduleRequest;
 import org.springframework.util.Assert;
+import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,6 +35,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static org.springframework.cloud.scheduler.spi.kubernetes.KubernetesSchedulerProperties.KUBERNETES_SCHEDULER_PROPERTIES;
 
 /**
  * Configures a {@link Container} that will be launched by a {@link CronJob}.
@@ -67,6 +72,7 @@ class ContainerCreator {
 				.withImagePullPolicy(imagePullPolicy)
 				.withEnv(getContainerParameters().getEnvironmentVariables())
 				.withArgs(getContainerParameters().getCommandLineArguments())
+				.withVolumeMounts(getVolumeMounts(this.scheduleRequest))
 				.build();
 	}
 
@@ -170,5 +176,44 @@ class ContainerCreator {
 		List<String> getCommandLineArguments() {
 			return this.commandLineArguments;
 		}
+	}
+
+	/**
+	 * Volume mount deployment properties are specified in YAML format:
+	 * <p>
+	 * <code>
+	 * spring.cloud.scheduler.kubernetes.volumeMounts=[{name: 'testhostpath', mountPath: '/test/hostPath'},
+	 * {name: 'testpvc', mountPath: '/test/pvc'}, {name: 'testnfs', mountPath: '/test/nfs'}]
+	 * </code>
+	 * <p>
+	 * Volume mounts can be specified as scheduler properties as well as app deployment properties.
+	 * Deployment properties override scheduler properties.
+	 *
+	 * @param request the {@link ScheduleRequest}
+	 * @return the configured volume mounts
+	 */
+	protected List<VolumeMount> getVolumeMounts(ScheduleRequest request) {
+		List<VolumeMount> volumeMounts = new ArrayList<>();
+
+		String volumeMountDeploymentProperty = request.getDeploymentProperties()
+				.getOrDefault(KUBERNETES_SCHEDULER_PROPERTIES + ".volumeMounts", "");
+		if (!StringUtils.isEmpty(volumeMountDeploymentProperty)) {
+			YamlConfigurationFactory<KubernetesSchedulerProperties> volumeMountYamlConfigurationFactory = new YamlConfigurationFactory<>(
+					KubernetesSchedulerProperties.class);
+			volumeMountYamlConfigurationFactory.setYaml("{ volumeMounts: " + volumeMountDeploymentProperty + " }");
+			try {
+				volumeMountYamlConfigurationFactory.afterPropertiesSet();
+				volumeMounts.addAll(volumeMountYamlConfigurationFactory.getObject().getVolumeMounts());
+			} catch (Exception e) {
+				throw new IllegalArgumentException(
+						String.format("Invalid volume mount '%s'", volumeMountDeploymentProperty), e);
+			}
+		}
+		// only add volume mounts that have not already been added, based on the volume mount's name
+		// i.e. allow provided deployment volume mounts to override deployer defined volume mounts
+		volumeMounts.addAll(kubernetesSchedulerProperties.getVolumeMounts().stream().filter(volumeMount -> volumeMounts.stream()
+				.noneMatch(existingVolumeMount -> existingVolumeMount.getName().equals(volumeMount.getName())))
+				.collect(Collectors.toList()));
+		return volumeMounts;
 	}
 }
