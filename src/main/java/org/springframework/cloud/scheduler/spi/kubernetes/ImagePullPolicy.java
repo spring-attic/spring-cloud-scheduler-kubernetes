@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 the original author or authors.
+ * Copyright 2018-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,12 @@
 
 package org.springframework.cloud.scheduler.spi.kubernetes;
 
-import org.springframework.boot.bind.RelaxedNames;
+import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 
-import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Defines container image pull policies that are available. The selection of pull policy
@@ -43,26 +46,21 @@ public enum ImagePullPolicy {
 	Never;
 
 	/**
-	 * Converts the string of the provided image pull policy to the appropriate enum value
-	 * using {@link RelaxedNames}. Defaults to {@link ImagePullPolicy#IfNotPresent} if no
-	 * matching image pull policy is found.
+	 * Converts the string of the provided image pull policy to the appropriate enum value.
+	 * Defaults to {@link ImagePullPolicy#IfNotPresent} if no matching image pull policy is found.
 	 *
 	 * @param imagePullPolicy the image pull policy to use
 	 * @return the converted {@link ImagePullPolicy}
 	 */
 	public static ImagePullPolicy relaxedValueOf(String imagePullPolicy) {
-		for (ImagePullPolicy candidate : EnumSet.allOf(ImagePullPolicy.class)) {
-			for (String relaxedName : new RelaxedNames(candidate.name())) {
-				if (relaxedName.equals(imagePullPolicy)) {
-					return candidate;
-				}
-			}
-
-			if (candidate.name().equalsIgnoreCase(imagePullPolicy)) {
-				return candidate;
-			}
+		Map<String, String> props = new HashMap<>();
+		props.put("value", imagePullPolicy);
+		MapConfigurationPropertySource source = new MapConfigurationPropertySource(props);
+		Binder binder = new Binder(source);
+		try {
+			return binder.bind("value", Bindable.of(ImagePullPolicy.class)).get();
+		} catch (Exception e) {
+			return IfNotPresent;
 		}
-
-		return IfNotPresent;
 	}
 }

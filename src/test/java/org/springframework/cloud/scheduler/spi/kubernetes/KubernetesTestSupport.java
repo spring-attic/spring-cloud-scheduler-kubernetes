@@ -17,6 +17,7 @@
 package org.springframework.cloud.scheduler.spi.kubernetes;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -48,7 +49,7 @@ public class KubernetesTestSupport extends AbstractExternalResourceTestSupport<K
 
 	@Override
 	protected void obtainResource() throws Exception {
-		context = new SpringApplicationBuilder(Config.class).web(false).run();
+		context = new SpringApplicationBuilder(Config.class).web(WebApplicationType.NONE).run();
 		resource = context.getBean(KubernetesClient.class);
 		resource.namespaces().list();
 	}
